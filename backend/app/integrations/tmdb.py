@@ -119,7 +119,7 @@ class TmdbClient:
             original_title=data.get("original_title") or None,
             release_date=release_date,
             release_year=release_date.year if release_date else None,
-            runtime_minutes=data.get("runtime"),
+            runtime_minutes=data.get("runtime") if (data.get("runtime") or 0) > 0 else None,
             overview=data.get("overview") or None,
             poster_url=_poster_url(data.get("poster_path")),
             genres=[TmdbGenrePreview(tmdb_id=g["id"], name=g["name"]) for g in data.get("genres", [])],

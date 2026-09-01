@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.tmdb import tmdb_client
@@ -33,13 +33,234 @@ async def get_existing_movie_by_tmdb_id(
     )
 
 
+async def _unique_name_match(
+    session: AsyncSession,
+    model,
+    name: str,
+):
+    """
+    Resolve lookup-table entries whose name is supposed to be unique.
+
+    Prefer an exact match. If that does not exist, accept exactly one
+    case-insensitive match.
+    """
+    exact = await session.scalar(
+        select(model).where(model.name == name)
+    )
+    if exact is not None:
+        return exact
+
+    rows = (
+        await session.scalars(
+            select(model)
+            .where(func.lower(model.name) == name.lower())
+            .limit(2)
+        )
+    ).all()
+
+    if len(rows) == 1:
+        return rows[0]
+
+    if len(rows) > 1:
+        raise ValueError(
+            f'Ambiguous existing {model.__name__} entries for "{name}"'
+        )
+
+    return None
+
+
+async def _single_name_match(
+    session: AsyncSession,
+    model,
+    name: str,
+):
+    """
+    Name fallback for entities where duplicate names are allowed.
+
+    Only reuse an existing object if exactly one matching row exists.
+    """
+    rows = (
+        await session.scalars(
+            select(model)
+            .where(func.lower(model.name) == name.lower())
+            .limit(2)
+        )
+    ).all()
+
+    return rows[0] if len(rows) == 1 else None
+
+
+async def _resolve_genre(session: AsyncSession, incoming):
+    genre = await session.scalar(
+        select(Genre).where(Genre.tmdb_id == incoming.tmdb_id)
+    )
+
+    if genre is not None:
+        return genre
+
+    genre = await _unique_name_match(
+        session,
+        Genre,
+        incoming.name,
+    )
+
+    if genre is not None:
+        if genre.tmdb_id is None:
+            genre.tmdb_id = incoming.tmdb_id
+            await session.flush()
+            return genre
+
+        if genre.tmdb_id != incoming.tmdb_id:
+            raise ValueError(
+                f'Genre "{incoming.name}" is already linked to '
+                f"TMDB {genre.tmdb_id}, not {incoming.tmdb_id}"
+            )
+
+        return genre
+
+    genre = Genre(
+        name=incoming.name,
+        tmdb_id=incoming.tmdb_id,
+    )
+    session.add(genre)
+    await session.flush()
+    return genre
+
+
+async def _resolve_country(session: AsyncSession, incoming):
+    country = None
+
+    if incoming.iso2:
+        country = await session.scalar(
+            select(Country).where(Country.iso2 == incoming.iso2)
+        )
+
+    if country is None:
+        country = await _unique_name_match(
+            session,
+            Country,
+            incoming.name,
+        )
+
+    if country is not None:
+        if country.iso2 is None and incoming.iso2:
+            country.iso2 = incoming.iso2
+            await session.flush()
+
+        return country
+
+    country = Country(
+        name=incoming.name,
+        iso2=incoming.iso2,
+        iso3=None,
+    )
+    session.add(country)
+    await session.flush()
+    return country
+
+
+async def _resolve_language(session: AsyncSession, incoming):
+    language = await session.scalar(
+        select(Language).where(
+            Language.iso_code == incoming.iso_code
+        )
+    )
+
+    if language is not None:
+        return language
+
+    language = await _unique_name_match(
+        session,
+        Language,
+        incoming.name or incoming.iso_code,
+    )
+
+    if language is not None:
+        return language
+
+    language = Language(
+        iso_code=incoming.iso_code,
+        name=incoming.name or incoming.iso_code,
+    )
+    session.add(language)
+    await session.flush()
+    return language
+
+
+async def _resolve_studio(session: AsyncSession, incoming):
+    studio = await session.scalar(
+        select(Studio).where(
+            Studio.tmdb_id == incoming.tmdb_id
+        )
+    )
+
+    if studio is not None:
+        return studio
+
+    studio = await _single_name_match(
+        session,
+        Studio,
+        incoming.name,
+    )
+
+    if studio is not None and studio.tmdb_id is None:
+        studio.tmdb_id = incoming.tmdb_id
+        await session.flush()
+        return studio
+
+    # Studio names are not unique. If the name match is ambiguous or
+    # belongs to another TMDB ID, create the TMDB entity separately.
+    studio = Studio(
+        name=incoming.name,
+        tmdb_id=incoming.tmdb_id,
+    )
+    session.add(studio)
+    await session.flush()
+    return studio
+
+
+async def _resolve_person(session: AsyncSession, incoming):
+    person = await session.scalar(
+        select(Person).where(
+            Person.tmdb_id == incoming.tmdb_person_id
+        )
+    )
+
+    if person is not None:
+        return person
+
+    person = await _single_name_match(
+        session,
+        Person,
+        incoming.name,
+    )
+
+    if person is not None and person.tmdb_id is None:
+        person.tmdb_id = incoming.tmdb_person_id
+        await session.flush()
+        return person
+
+    # Names are not reliable identifiers for people. Only reuse a
+    # name-only legacy entry when it is unique and has no TMDB ID.
+    person = Person(
+        name=incoming.name,
+        tmdb_id=incoming.tmdb_person_id,
+    )
+    session.add(person)
+    await session.flush()
+    return person
+
+
 async def import_movie_from_tmdb(
     session: AsyncSession,
     *,
     tmdb_id: int,
     created_by_id: UUID,
 ) -> Movie:
-    existing = await get_existing_movie_by_tmdb_id(session, tmdb_id)
+    existing = await get_existing_movie_by_tmdb_id(
+        session,
+        tmdb_id,
+    )
 
     if existing is not None:
         raise ValueError(
@@ -66,16 +287,7 @@ async def import_movie_from_tmdb(
     await session.flush()
 
     for incoming in preview.genres:
-        genre = await session.scalar(
-            select(Genre).where(Genre.tmdb_id == incoming.tmdb_id)
-        )
-        if genre is None:
-            genre = Genre(
-                name=incoming.name,
-                tmdb_id=incoming.tmdb_id,
-            )
-            session.add(genre)
-            await session.flush()
+        genre = await _resolve_genre(session, incoming)
 
         session.add(
             MovieGenre(
@@ -85,26 +297,7 @@ async def import_movie_from_tmdb(
         )
 
     for incoming in preview.countries:
-        country = None
-
-        if incoming.iso2:
-            country = await session.scalar(
-                select(Country).where(Country.iso2 == incoming.iso2)
-            )
-
-        if country is None:
-            country = await session.scalar(
-                select(Country).where(Country.name == incoming.name)
-            )
-
-        if country is None:
-            country = Country(
-                name=incoming.name,
-                iso2=incoming.iso2,
-                iso3=None,
-            )
-            session.add(country)
-            await session.flush()
+        country = await _resolve_country(session, incoming)
 
         session.add(
             MovieCountry(
@@ -114,19 +307,7 @@ async def import_movie_from_tmdb(
         )
 
     for incoming in preview.languages:
-        language = await session.scalar(
-            select(Language).where(
-                Language.iso_code == incoming.iso_code
-            )
-        )
-
-        if language is None:
-            language = Language(
-                iso_code=incoming.iso_code,
-                name=incoming.name or incoming.iso_code,
-            )
-            session.add(language)
-            await session.flush()
+        language = await _resolve_language(session, incoming)
 
         session.add(
             MovieLanguage(
@@ -137,17 +318,7 @@ async def import_movie_from_tmdb(
         )
 
     for incoming in preview.studios:
-        studio = await session.scalar(
-            select(Studio).where(Studio.tmdb_id == incoming.tmdb_id)
-        )
-
-        if studio is None:
-            studio = Studio(
-                name=incoming.name,
-                tmdb_id=incoming.tmdb_id,
-            )
-            session.add(studio)
-            await session.flush()
+        studio = await _resolve_studio(session, incoming)
 
         session.add(
             MovieStudio(
@@ -157,19 +328,7 @@ async def import_movie_from_tmdb(
         )
 
     for incoming in preview.credits:
-        person = await session.scalar(
-            select(Person).where(
-                Person.tmdb_id == incoming.tmdb_person_id
-            )
-        )
-
-        if person is None:
-            person = Person(
-                name=incoming.name,
-                tmdb_id=incoming.tmdb_person_id,
-            )
-            session.add(person)
-            await session.flush()
+        person = await _resolve_person(session, incoming)
 
         session.add(
             MoviePerson(
@@ -190,6 +349,7 @@ async def import_movie_from_tmdb(
         movie.id,
         include_deleted=True,
     )
+
     snapshot = movie_snapshot(movie)
 
     await log_audit(
