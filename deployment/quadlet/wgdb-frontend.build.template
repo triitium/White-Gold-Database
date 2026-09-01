@@ -1,0 +1,11 @@
+[Unit]
+Description=Build WGDB frontend image
+
+[Build]
+ImageTag=localhost/wgdb-frontend:production
+File=@@WGDB_REPO@@/frontend/Containerfile
+SetWorkingDirectory=@@WGDB_REPO@@/frontend
+Pull=newer
+
+[Install]
+WantedBy=default.target

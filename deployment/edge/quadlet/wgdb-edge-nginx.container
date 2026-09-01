@@ -1,0 +1,20 @@
+[Unit]
+Description=WGDB edge nginx
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/library/nginx:1.30.4-alpine3.24
+ContainerName=wgdb-edge-nginx
+Network=host
+
+Volume=/etc/wgdb-edge/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+Volume=/var/lib/wgdb-edge/letsencrypt:/etc/letsencrypt:ro
+Volume=/var/lib/wgdb-edge/acme:/var/www/certbot:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

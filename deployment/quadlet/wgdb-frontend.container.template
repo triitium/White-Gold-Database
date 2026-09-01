@@ -1,0 +1,26 @@
+[Unit]
+Description=WGDB React frontend
+After=wgdb-backend.service
+Wants=wgdb-backend.service
+
+[Container]
+Image=wgdb-frontend.build
+ContainerName=wgdb-frontend
+Network=wgdb-network.network
+PublishPort=127.0.0.1:18080:8080
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz
+HealthInterval=20s
+HealthTimeout=5s
+HealthRetries=3
+HealthStartPeriod=5s
+Notify=healthy
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+RestartSec=5s
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

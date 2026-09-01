@@ -1,0 +1,11 @@
+[Unit]
+Description=Build WGDB backend image
+
+[Build]
+ImageTag=localhost/wgdb-backend:production
+File=@@WGDB_REPO@@/backend/Containerfile
+SetWorkingDirectory=@@WGDB_REPO@@/backend
+Pull=newer
+
+[Install]
+WantedBy=default.target

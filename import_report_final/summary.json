@@ -1,0 +1,22 @@
+{
+  "source_file": "/mnt/data/FILME-V1.1.xlsm",
+  "generated_at": "2026-08-22T12:43:25.995381+00:00",
+  "movie_rows_parsed": 1300,
+  "warning_count": 4,
+  "warnings_by_severity": {
+    "warning": 2,
+    "error": 2
+  },
+  "warnings_by_code": {
+    "duplicate_candidate": 2,
+    "genre_looks_like_title": 2
+  },
+  "unique_genres": 35,
+  "unique_countries": 61,
+  "unique_people_in_director_or_top3_cast": 2905,
+  "pending_personal_rows": 94,
+  "image_enrichment": {
+    "poster_matches": "0",
+    "poster_collision_keys": "0"
+  }
+}

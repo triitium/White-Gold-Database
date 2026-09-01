@@ -1,0 +1,8 @@
+[Unit]
+Description=WGDB PostgreSQL persistent volume
+
+[Volume]
+VolumeName=wgdb-postgres-data
+
+[Install]
+WantedBy=default.target

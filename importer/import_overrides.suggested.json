@@ -1,0 +1,12 @@
+{
+  "genre_map": {
+    "Abenteur": "Abenteuer",
+    "Thiller": "Thriller",
+    "Action Thriller": ["Action", "Thriller"]
+  },
+  "country_map": {
+    "ESP. FRA": ["ESP", "FRA"]
+  },
+  "person_map": {},
+  "title_map": {}
+}

@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
+
+from app.api.deps import AdminUser, CsrfProtected, CurrentUser, SessionDep
+from app.mappers.movie import movie_to_list_item, movie_to_read
+from app.schemas.common import Page
+from app.schemas.movie import MovieCreate, MovieUpdate
+from app.schemas.movie_read import MovieListItem, MovieRead
+from app.services import movie_manual
+from app.services.movie_read import get_movie, list_movies
+from app.services.movie_mutations import hard_delete_movie, restore_movie, soft_delete_movie
+
+
+router = APIRouter(prefix="/movies", tags=["movies"])
+
+
+@router.get("", response_model=Page[MovieListItem])
+async def get_movies(
+    session: SessionDep,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    year_from: Annotated[int | None, Query(ge=1880, le=2200)] = None,
+    year_to: Annotated[int | None, Query(ge=1880, le=2200)] = None,
+    genre_id: UUID | None = None,
+    country_id: UUID | None = None,
+    sort: Literal["title", "year", "runtime", "created", "updated"] = "title",
+    direction: Literal["asc", "desc"] = "asc",
+):
+    if year_from is not None and year_to is not None and year_from > year_to:
+        raise HTTPException(422, "year_from must be <= year_to")
+
+    rows, total = await list_movies(
+        session,
+        page=page,
+        page_size=page_size,
+        q=q,
+        year_from=year_from,
+        year_to=year_to,
+        genre_id=genre_id,
+        country_id=country_id,
+        sort=sort,
+        direction=direction,
+    )
+    return Page[MovieListItem].create(
+        items=[movie_to_list_item(x) for x in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
+@router.get("/{movie_id}", response_model=MovieRead)
+async def get_movie_detail(movie_id: UUID, session: SessionDep):
+    movie = await get_movie(session, movie_id)
+    if movie is None:
+        raise HTTPException(404, "Movie not found")
+    return movie_to_read(movie)
+
+
+@router.post("", response_model=MovieRead, status_code=status.HTTP_201_CREATED)
+async def create_movie(
+    data: MovieCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+    _csrf: CsrfProtected,
+):
+    try:
+        movie = await movie_manual.create_movie(
+            session,
+            data=data,
+            actor_user_id=current_user.id,
+        )
+        await session.commit()
+        movie = await get_movie(session, movie.id, include_deleted=True)
+        return movie_to_read(movie)
+    except movie_manual.MovieReferenceError as exc:
+        await session.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(409, "Movie conflicts with an existing unique value") from exc
+
+
+@router.patch("/{movie_id}", response_model=MovieRead)
+async def update_movie(
+    movie_id: UUID,
+    data: MovieUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+    _csrf: CsrfProtected,
+):
+    movie = await get_movie(session, movie_id)
+    if movie is None:
+        raise HTTPException(404, "Movie not found")
+    try:
+        movie = await movie_manual.update_movie(
+            session,
+            movie=movie,
+            data=data,
+            actor_user_id=current_user.id,
+        )
+        await session.commit()
+        movie = await get_movie(session, movie_id, include_deleted=True)
+        return movie_to_read(movie)
+    except movie_manual.MovieReferenceError as exc:
+        await session.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(409, "Movie conflicts with an existing unique value") from exc
+
+
+@router.delete("/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_movie(
+    movie_id: UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+    _csrf: CsrfProtected,
+):
+    movie = await get_movie(session, movie_id)
+    if movie is None:
+        raise HTTPException(404, "Movie not found")
+    await soft_delete_movie(session, movie=movie, actor_user_id=current_user.id)
+    await session.commit()
+
+
+@router.post("/{movie_id}/restore", response_model=MovieRead)
+async def restore_movie_route(
+    movie_id: UUID,
+    session: SessionDep,
+    admin: AdminUser,
+    _csrf: CsrfProtected,
+):
+    movie = await get_movie(session, movie_id, include_deleted=True)
+    if movie is None:
+        raise HTTPException(404, "Movie not found")
+    if movie.deleted_at is None:
+        raise HTTPException(409, "Movie is not deleted")
+    movie = await restore_movie(session, movie=movie, actor_user_id=admin.id)
+    await session.commit()
+    movie = await get_movie(session, movie_id, include_deleted=True)
+    return movie_to_read(movie)
+
+
+@router.delete("/{movie_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanent_delete_movie(
+    movie_id: UUID,
+    session: SessionDep,
+    admin: AdminUser,
+    _csrf: CsrfProtected,
+):
+    movie = await get_movie(session, movie_id, include_deleted=True)
+    if movie is None:
+        raise HTTPException(404, "Movie not found")
+    if movie.deleted_at is None:
+        raise HTTPException(409, "Movie must be soft-deleted first")
+    await hard_delete_movie(session, movie=movie, actor_user_id=admin.id)
+    await session.commit()

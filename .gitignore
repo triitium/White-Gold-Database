@@ -1,0 +1,43 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.secret
+*.pem
+*.key
+
+# Local / production runtime config
+deployment/local/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Import/source data
+import/
+*.xlsm
+*.xlsx
+*.backup.xlsm
+wgdb-import-report/
+personal_pending.csv
+
+# Database / backups
+*.sql
+*.dump
+*.backup
+backups/
+
+# Logs
+*.log

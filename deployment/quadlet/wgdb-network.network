@@ -1,0 +1,9 @@
+[Unit]
+Description=WGDB rootless Podman network
+
+[Network]
+NetworkName=wgdb
+Driver=bridge
+
+[Install]
+WantedBy=default.target

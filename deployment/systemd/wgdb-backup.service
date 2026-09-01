@@ -1,0 +1,7 @@
+[Unit]
+Description=Backup White Gold Database PostgreSQL
+After=wgdb-postgres.service
+
+[Service]
+Type=oneshot
+ExecStart=@@WGDB_REPO@@/deployment/scripts/backup.sh

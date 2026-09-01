@@ -1,0 +1,54 @@
+name: wgdb
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wgdb_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-development-only-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-wgdb}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - wgdb_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wgdb_app} -d ${POSTGRES_DB:-wgdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Containerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-wgdb_app}:${POSTGRES_PASSWORD:-development-only-change-me}@postgres:5432/${POSTGRES_DB:-wgdb}
+      SECRET_KEY: ${WGDB_SECRET_KEY:-development-only-change-me-too}
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: lax
+      TMDB_READ_ACCESS_TOKEN: ${TMDB_READ_ACCESS_TOKEN:-}
+      TMDB_LANGUAGE: de-DE
+      CORS_ORIGINS: '["http://localhost:8080"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Containerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
+volumes:
+  wgdb_postgres:

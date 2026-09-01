@@ -1,0 +1,5 @@
+﻿severity,code,row,excel_id,field,value,message
+warning,genre_looks_like_title,261,222,Genre,La Strada – Das Lied der Straße,Genre resembles the movie title; verify manually
+warning,genre_looks_like_title,305,260,Genre,Krieg,Genre resembles the movie title; verify manually
+error,duplicate_candidate,850,663,duplicate_key,"{""key"": [""das süsse jenseits"", 1997, ""the sweet hereafter""], ""excel_ids"": [""663"", ""1102""], ""rows"": [850, 851]}",Multiple workbook rows share normalized title/year/original-title
+error,duplicate_candidate,851,1102,duplicate_key,"{""key"": [""das süsse jenseits"", 1997, ""the sweet hereafter""], ""excel_ids"": [""663"", ""1102""], ""rows"": [850, 851]}",Multiple workbook rows share normalized title/year/original-title

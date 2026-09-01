@@ -1,0 +1,13 @@
+[Unit]
+Description=Renew WGDB Let's Encrypt certificate
+After=network-online.target wgdb-edge-nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/podman run --rm --name wgdb-certbot-renew \
+  -v /var/lib/wgdb-edge/letsencrypt:/etc/letsencrypt \
+  -v /var/lib/wgdb-edge/acme:/var/www/certbot \
+  docker.io/certbot/certbot:v5.7.0 \
+  renew --webroot --webroot-path /var/www/certbot --quiet
+ExecStartPost=/usr/bin/podman exec wgdb-edge-nginx nginx -s reload
