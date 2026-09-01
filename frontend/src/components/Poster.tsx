@@ -4,6 +4,17 @@ type Props = {
   className?: string;
 };
 
+function resolvePosterSrc(src: string): string {
+  // TMDB poster_path values are stored as e.g. "/abc123.jpg".
+  // Convert them to an actual TMDB image URL here so every Poster
+  // consumer gets consistent behaviour.
+  if (src.startsWith("/") && !src.startsWith("//")) {
+    return `https://image.tmdb.org/t/p/w500${src}`;
+  }
+
+  return src;
+}
+
 export function Poster({ src, alt, className = "" }: Props) {
   if (!src) {
     return (
@@ -19,7 +30,7 @@ export function Poster({ src, alt, className = "" }: Props) {
   return (
     <img
       className={`poster ${className}`}
-      src={src}
+      src={resolvePosterSrc(src)}
       alt={`${alt} poster`}
       loading="lazy"
     />

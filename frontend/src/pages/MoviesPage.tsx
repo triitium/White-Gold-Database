@@ -11,11 +11,17 @@ import type { MovieListItem, Page } from "../types";
 
 const PAGE_SIZE = 25;
 
+type GenreOption = {
+  id: string;
+  name: string;
+};
+
 export function MoviesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<Page<MovieListItem> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [genres, setGenres] = useState<GenreOption[]>([]);
 
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
   const query = searchParams.get("q") ?? "";
@@ -23,10 +29,12 @@ export function MoviesPage() {
   const yearTo = searchParams.get("year_to") ?? "";
   const sort = searchParams.get("sort") ?? "title";
   const direction = searchParams.get("direction") ?? "asc";
+  const genreId = searchParams.get("genre_id") ?? "";
 
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftYearFrom, setDraftYearFrom] = useState(yearFrom);
   const [draftYearTo, setDraftYearTo] = useState(yearTo);
+  const [draftGenreId, setDraftGenreId] = useState(genreId);
 
   const requestPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -39,9 +47,26 @@ export function MoviesPage() {
     if (query) params.set("q", query);
     if (yearFrom) params.set("year_from", yearFrom);
     if (yearTo) params.set("year_to", yearTo);
+    if (genreId) params.set("genre_id", genreId);
 
     return `/movies?${params.toString()}`;
-  }, [page, query, yearFrom, yearTo, sort, direction]);
+  }, [page, query, yearFrom, yearTo, genreId, sort, direction]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api<GenreOption[]>("/movies/filter-options/genres")
+      .then((rows) => {
+        if (!cancelled) setGenres(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setGenres([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +105,7 @@ export function MoviesPage() {
     setOrDelete(next, "q", draftQuery.trim());
     setOrDelete(next, "year_from", draftYearFrom);
     setOrDelete(next, "year_to", draftYearTo);
+    setOrDelete(next, "genre_id", draftGenreId);
 
     setSearchParams(next);
   }
@@ -152,6 +178,21 @@ export function MoviesPage() {
             value={draftYearTo}
             onChange={(e) => setDraftYearTo(e.target.value)}
           />
+        </label>
+
+        <label className="field field--compact">
+          <span>Genre</span>
+          <select
+            value={draftGenreId}
+            onChange={(e) => setDraftGenreId(e.target.value)}
+          >
+            <option value="">All genres</option>
+            {genres.map((genre) => (
+              <option value={genre.id} key={genre.id}>
+                {genre.name}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="field field--compact">

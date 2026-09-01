@@ -120,6 +120,48 @@ async def update_user_active(
     return UserRead.model_validate(user)
 
 
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_user(
+    user_id: UUID,
+    session: SessionDep,
+    admin: AdminUser,
+    _csrf: CsrfProtected,
+):
+    if user_id == admin.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "You cannot delete your own account",
+        )
+
+    user = await session.get(User, user_id)
+
+    if user is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "User not found",
+        )
+
+    try:
+        await admin_user_service.delete_user(
+            session,
+            target=user,
+            actor_user_id=admin.id,
+        )
+        await session.commit()
+    except ValueError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            str(exc),
+        ) from exc
+
+    return None
+
+
 @router.get("/deleted-movies", response_model=list[DeletedMovieRead])
 async def list_deleted_movies(session: SessionDep, admin: AdminUser):
     rows = (

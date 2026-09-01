@@ -55,6 +55,29 @@ async def get_movies(
     )
 
 
+
+@router.get("/filter-options/genres")
+async def get_movie_genre_options(session: SessionDep):
+    """Public genre options for the movie catalogue filter."""
+    from sqlalchemy import func, select
+
+    from app.models.classification import Genre
+
+    rows = (
+        await session.scalars(
+            select(Genre).order_by(func.lower(Genre.name))
+        )
+    ).all()
+
+    return [
+        {
+            "id": str(genre.id),
+            "name": genre.name,
+        }
+        for genre in rows
+    ]
+
+
 @router.get("/{movie_id}", response_model=MovieRead)
 async def get_movie_detail(movie_id: UUID, session: SessionDep):
     movie = await get_movie(session, movie_id)

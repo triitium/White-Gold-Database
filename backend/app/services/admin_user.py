@@ -96,3 +96,48 @@ async def change_active(
     )
 
     return target
+
+
+async def delete_user(
+    session: AsyncSession,
+    *,
+    target: User,
+    actor_user_id: UUID,
+) -> None:
+    """Permanently delete a user while preserving system integrity."""
+
+    if target.id == actor_user_id:
+        raise ValueError("You cannot delete your own account")
+
+    if (
+        target.role == UserRole.ADMIN.value
+        and target.is_active
+    ):
+        active_admin_count = await session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.role == UserRole.ADMIN.value,
+                User.is_active.is_(True),
+            )
+        )
+
+        if (active_admin_count or 0) <= 1:
+            raise ValueError("The last active admin cannot be deleted")
+
+    before = user_snapshot(target)
+    target_id = target.id
+
+    await session.delete(target)
+    await session.flush()
+
+    await log_audit(
+        session,
+        actor_user_id=actor_user_id,
+        action="HARD_DELETE",
+        entity_type="user",
+        entity_id=target_id,
+        before_data=before,
+        after_data=None,
+        reduce_to_diff=False,
+    )

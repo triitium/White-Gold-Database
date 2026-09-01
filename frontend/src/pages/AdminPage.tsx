@@ -21,6 +21,7 @@ export function AdminPage() {
     role: "user" as "user" | "admin",
   });
   const [creatingUser, setCreatingUser] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -83,6 +84,38 @@ export function AdminPage() {
       body: JSON.stringify({ is_active: isActive }),
     });
     await reload();
+  }
+
+  async function deleteUser(user: User) {
+    if (user.id === currentUser?.id) return;
+
+    if (
+      !window.confirm(
+        `Permanently delete user "${user.username}"? Their ratings and reviews will also be deleted. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingUserId(user.id);
+    setError(null);
+
+    try {
+      await api(`/admin/users/${user.id}`, {
+        method: "DELETE",
+        csrf: true,
+      });
+
+      await reload();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Could not delete user",
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
   }
 
   async function restore(movie: DeletedMovie) {
@@ -174,6 +207,7 @@ export function AdminPage() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Active</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -201,6 +235,21 @@ export function AdminPage() {
                       />
                       <span>{user.is_active ? "active" : "inactive"}</span>
                     </label>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="button button--danger-ghost"
+                      disabled={
+                        user.id === currentUser?.id ||
+                        deletingUserId === user.id
+                      }
+                      onClick={() => void deleteUser(user)}
+                    >
+                      {deletingUserId === user.id
+                        ? "Deleting…"
+                        : "Delete user"}
+                    </button>
                   </td>
                 </tr>
               ))}
