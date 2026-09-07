@@ -10,7 +10,7 @@ class MoviePersonInput(BaseModel):
     person_id: UUID
     credit_type: str = Field(pattern=r"^(cast|crew)$")
     job: str | None = Field(default=None, max_length=150)
-    character_name: str | None = Field(default=None, max_length=300)
+    character_name: str | None = Field(default=None)
     billing_order: int | None = Field(default=None, ge=0)
     tmdb_credit_id: str | None = Field(default=None, max_length=100)
 

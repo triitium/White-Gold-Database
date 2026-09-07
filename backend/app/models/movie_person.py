@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Uuid
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, UUIDPrimaryKeyMixin
@@ -29,7 +29,7 @@ class MoviePerson(UUIDPrimaryKeyMixin, Base):
     )
     credit_type: Mapped[str] = mapped_column(String(10), nullable=False)
     job: Mapped[str | None] = mapped_column(String(150))
-    character_name: Mapped[str | None] = mapped_column(String(300))
+    character_name: Mapped[str | None] = mapped_column(Text)
     billing_order: Mapped[int | None] = mapped_column(Integer)
     tmdb_credit_id: Mapped[str | None] = mapped_column(String(100))
 
