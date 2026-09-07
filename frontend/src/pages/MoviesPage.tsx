@@ -36,6 +36,9 @@ export function MoviesPage() {
   const direction = searchParams.get("direction") ?? "asc";
   const genreId = searchParams.get("genre_id") ?? "";
   const actorId = searchParams.get("actor_id") ?? "";
+  const review = searchParams.get("review") ?? "all";
+  const ratingMin = searchParams.get("rating_min") ?? "";
+  const ratingMax = searchParams.get("rating_max") ?? "";
 
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftYearFrom, setDraftYearFrom] = useState(yearFrom);
@@ -45,6 +48,9 @@ export function MoviesPage() {
   const [actorQuery, setActorQuery] = useState("");
   const [actorOptions, setActorOptions] = useState<ActorOption[]>([]);
   const [actorSearchLoading, setActorSearchLoading] = useState(false);
+  const [draftReview, setDraftReview] = useState(review);
+  const [draftRatingMin, setDraftRatingMin] = useState(ratingMin);
+  const [draftRatingMax, setDraftRatingMax] = useState(ratingMax);
 
   const requestPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -59,9 +65,24 @@ export function MoviesPage() {
     if (yearTo) params.set("year_to", yearTo);
     if (genreId) params.set("genre_id", genreId);
     if (actorId) params.set("actor_id", actorId);
+    if (review !== "all") params.set("review", review);
+    if (ratingMin) params.set("rating_min", ratingMin);
+    if (ratingMax) params.set("rating_max", ratingMax);
 
     return `/movies?${params.toString()}`;
-  }, [page, query, yearFrom, yearTo, genreId, actorId, sort, direction]);
+  }, [
+    page,
+    query,
+    yearFrom,
+    yearTo,
+    genreId,
+    actorId,
+    review,
+    ratingMin,
+    ratingMax,
+    sort,
+    direction,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +205,9 @@ export function MoviesPage() {
     setOrDelete(next, "year_to", draftYearTo);
     setOrDelete(next, "genre_id", draftGenreId);
     setOrDelete(next, "actor_id", draftActorId);
+    setOrDelete(next, "review", draftReview === "all" ? "" : draftReview);
+    setOrDelete(next, "rating_min", draftRatingMin);
+    setOrDelete(next, "rating_max", draftRatingMax);
 
     setSearchParams(next);
   }
@@ -315,6 +339,42 @@ export function MoviesPage() {
               ))}
             </select>
           )}
+        </label>
+
+        <label className="field field--compact">
+          <span>Reviews</span>
+          <select
+            value={draftReview}
+            onChange={(e) => setDraftReview(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="has">Has reviews</option>
+            <option value="none">No reviews</option>
+          </select>
+        </label>
+
+        <label className="field field--compact">
+          <span>Rating min</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="0"
+            value={draftRatingMin}
+            onChange={(e) => setDraftRatingMin(e.target.value)}
+          />
+        </label>
+
+        <label className="field field--compact">
+          <span>Rating max</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="100"
+            value={draftRatingMax}
+            onChange={(e) => setDraftRatingMax(e.target.value)}
+          />
         </label>
 
         <label className="field field--compact">

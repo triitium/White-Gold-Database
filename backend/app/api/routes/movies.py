@@ -30,11 +30,17 @@ async def get_movies(
     genre_id: UUID | None = None,
     country_id: UUID | None = None,
     actor_id: UUID | None = None,
+    review: Literal["all", "has", "none"] = "all",
+    rating_min: Annotated[int | None, Query(ge=0, le=100)] = None,
+    rating_max: Annotated[int | None, Query(ge=0, le=100)] = None,
     sort: Literal["title", "year", "runtime", "created", "updated"] = "title",
     direction: Literal["asc", "desc"] = "asc",
 ):
     if year_from is not None and year_to is not None and year_from > year_to:
         raise HTTPException(422, "year_from must be <= year_to")
+
+    if rating_min is not None and rating_max is not None and rating_min > rating_max:
+        raise HTTPException(422, "rating_min must be <= rating_max")
 
     rows, total = await list_movies(
         session,
@@ -46,6 +52,9 @@ async def get_movies(
         genre_id=genre_id,
         country_id=country_id,
         actor_id=actor_id,
+        review=review,
+        rating_min=rating_min,
+        rating_max=rating_max,
         sort=sort,
         direction=direction,
     )

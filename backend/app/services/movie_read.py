@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.models.classification import MovieCountry, MovieGenre
 from app.models.movie import Movie
 from app.models.movie_person import MoviePerson
+from app.models.review import UserReview
+from app.models.user_movie import UserMovie
 from app.services.movie_loader import movie_full_options
 
 
@@ -32,6 +34,9 @@ async def list_movies(
     genre_id: UUID | None,
     country_id: UUID | None,
     actor_id: UUID | None,
+    review: str,
+    rating_min: int | None,
+    rating_max: int | None,
     sort: str,
     direction: str,
 ):
@@ -74,6 +79,38 @@ async def list_movies(
             MoviePerson.person_id == actor_id,
             MoviePerson.credit_type == "cast",
         )
+
+    has_review = (
+        select(UserReview.id)
+        .where(UserReview.movie_id == Movie.id)
+        .exists()
+    )
+
+    if review == "has":
+        base = base.where(has_review)
+        count_stmt = count_stmt.where(has_review)
+    elif review == "none":
+        base = base.where(~has_review)
+        count_stmt = count_stmt.where(~has_review)
+
+    if rating_min is not None or rating_max is not None:
+        community_rating = (
+            select(func.avg(UserMovie.rating))
+            .where(
+                UserMovie.movie_id == Movie.id,
+                UserMovie.rating.is_not(None),
+            )
+            .correlate(Movie)
+            .scalar_subquery()
+        )
+
+        if rating_min is not None:
+            base = base.where(community_rating >= rating_min)
+            count_stmt = count_stmt.where(community_rating >= rating_min)
+
+        if rating_max is not None:
+            base = base.where(community_rating <= rating_max)
+            count_stmt = count_stmt.where(community_rating <= rating_max)
 
     sort_column = LIST_SORTS[sort]
     order = asc(sort_column) if direction == "asc" else desc(sort_column)
