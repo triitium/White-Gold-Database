@@ -16,6 +16,11 @@ type GenreOption = {
   name: string;
 };
 
+type ActorOption = {
+  id: string;
+  name: string;
+};
+
 export function MoviesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<Page<MovieListItem> | null>(null);
@@ -30,11 +35,16 @@ export function MoviesPage() {
   const sort = searchParams.get("sort") ?? "title";
   const direction = searchParams.get("direction") ?? "asc";
   const genreId = searchParams.get("genre_id") ?? "";
+  const actorId = searchParams.get("actor_id") ?? "";
 
   const [draftQuery, setDraftQuery] = useState(query);
   const [draftYearFrom, setDraftYearFrom] = useState(yearFrom);
   const [draftYearTo, setDraftYearTo] = useState(yearTo);
   const [draftGenreId, setDraftGenreId] = useState(genreId);
+  const [draftActorId, setDraftActorId] = useState(actorId);
+  const [actorQuery, setActorQuery] = useState("");
+  const [actorOptions, setActorOptions] = useState<ActorOption[]>([]);
+  const [actorSearchLoading, setActorSearchLoading] = useState(false);
 
   const requestPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -48,9 +58,10 @@ export function MoviesPage() {
     if (yearFrom) params.set("year_from", yearFrom);
     if (yearTo) params.set("year_to", yearTo);
     if (genreId) params.set("genre_id", genreId);
+    if (actorId) params.set("actor_id", actorId);
 
     return `/movies?${params.toString()}`;
-  }, [page, query, yearFrom, yearTo, genreId, sort, direction]);
+  }, [page, query, yearFrom, yearTo, genreId, actorId, sort, direction]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +78,72 @@ export function MoviesPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!actorId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    api<ActorOption>(`/movies/filter-options/actors/${actorId}`)
+      .then((actor) => {
+        if (!cancelled) {
+          setDraftActorId(actor.id);
+          setActorQuery(actor.name);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDraftActorId("");
+          setActorQuery("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [actorId]);
+
+  useEffect(() => {
+    const needle = actorQuery.trim();
+
+    if (draftActorId || needle.length < 2) {
+      setActorOptions([]);
+      setActorSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(() => {
+      setActorSearchLoading(true);
+
+      api<ActorOption[]>(
+        `/movies/filter-options/actors?q=${encodeURIComponent(needle)}&limit=15`,
+      )
+        .then((rows) => {
+          if (!cancelled) {
+            setActorOptions(rows);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setActorOptions([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setActorSearchLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [actorQuery, draftActorId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +183,7 @@ export function MoviesPage() {
     setOrDelete(next, "year_from", draftYearFrom);
     setOrDelete(next, "year_to", draftYearTo);
     setOrDelete(next, "genre_id", draftGenreId);
+    setOrDelete(next, "actor_id", draftActorId);
 
     setSearchParams(next);
   }
@@ -193,6 +271,50 @@ export function MoviesPage() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="field field--compact">
+          <span>Actor</span>
+          <input
+            placeholder="Search actor"
+            value={actorQuery}
+            autoComplete="off"
+            onChange={(e) => {
+              setActorQuery(e.target.value);
+              setDraftActorId("");
+            }}
+          />
+
+          {!draftActorId && actorQuery.trim().length >= 2 && (
+            <select
+              value=""
+              onChange={(e) => {
+                const actor = actorOptions.find(
+                  (option) => option.id === e.target.value,
+                );
+
+                if (actor) {
+                  setDraftActorId(actor.id);
+                  setActorQuery(actor.name);
+                  setActorOptions([]);
+                }
+              }}
+            >
+              <option value="">
+                {actorSearchLoading
+                  ? "Searching…"
+                  : actorOptions.length > 0
+                    ? "Choose actor…"
+                    : "No actors found"}
+              </option>
+
+              {actorOptions.map((actor) => (
+                <option value={actor.id} key={actor.id}>
+                  {actor.name}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
 
         <label className="field field--compact">

@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.classification import MovieCountry, MovieGenre
 from app.models.movie import Movie
+from app.models.movie_person import MoviePerson
 from app.services.movie_loader import movie_full_options
 
 
@@ -30,6 +31,7 @@ async def list_movies(
     year_to: int | None,
     genre_id: UUID | None,
     country_id: UUID | None,
+    actor_id: UUID | None,
     sort: str,
     direction: str,
 ):
@@ -56,6 +58,22 @@ async def list_movies(
     if country_id is not None:
         base = base.join(MovieCountry).where(MovieCountry.country_id == country_id)
         count_stmt = count_stmt.join(MovieCountry).where(MovieCountry.country_id == country_id)
+
+    if actor_id is not None:
+        base = base.join(
+            MoviePerson,
+            MoviePerson.movie_id == Movie.id,
+        ).where(
+            MoviePerson.person_id == actor_id,
+            MoviePerson.credit_type == "cast",
+        )
+        count_stmt = count_stmt.join(
+            MoviePerson,
+            MoviePerson.movie_id == Movie.id,
+        ).where(
+            MoviePerson.person_id == actor_id,
+            MoviePerson.credit_type == "cast",
+        )
 
     sort_column = LIST_SORTS[sort]
     order = asc(sort_column) if direction == "asc" else desc(sort_column)

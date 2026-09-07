@@ -29,6 +29,7 @@ async def get_movies(
     year_to: Annotated[int | None, Query(ge=1880, le=2200)] = None,
     genre_id: UUID | None = None,
     country_id: UUID | None = None,
+    actor_id: UUID | None = None,
     sort: Literal["title", "year", "runtime", "created", "updated"] = "title",
     direction: Literal["asc", "desc"] = "asc",
 ):
@@ -44,6 +45,7 @@ async def get_movies(
         year_to=year_to,
         genre_id=genre_id,
         country_id=country_id,
+        actor_id=actor_id,
         sort=sort,
         direction=direction,
     )
@@ -76,6 +78,100 @@ async def get_movie_genre_options(session: SessionDep):
         }
         for genre in rows
     ]
+
+
+@router.get("/filter-options/actors")
+async def get_movie_actor_options(
+    session: SessionDep,
+    q: Annotated[str, Query(min_length=1, max_length=100)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+):
+    """Search actors that have at least one cast credit."""
+    from sqlalchemy import case, func, select
+
+    from app.models.movie_person import MoviePerson
+    from app.models.person import Person
+
+    needle = q.strip()
+    if not needle:
+        return []
+
+    has_cast_credit = (
+        select(MoviePerson.id)
+        .where(
+            MoviePerson.person_id == Person.id,
+            MoviePerson.credit_type == "cast",
+        )
+        .exists()
+    )
+
+    name_lower = func.lower(Person.name)
+    needle_lower = needle.lower()
+
+    rank = case(
+        (name_lower == needle_lower, 0),
+        (name_lower.like(f"{needle_lower}%"), 1),
+        else_=2,
+    )
+
+    rows = (
+        await session.execute(
+            select(Person.id, Person.name)
+            .where(
+                Person.name.ilike(f"%{needle}%"),
+                has_cast_credit,
+            )
+            .order_by(rank, name_lower, Person.id)
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        {
+            "id": str(person_id),
+            "name": name,
+        }
+        for person_id, name in rows
+    ]
+
+
+@router.get("/filter-options/actors/{actor_id}")
+async def get_movie_actor_option(
+    actor_id: UUID,
+    session: SessionDep,
+):
+    """Return one actor option for restoring a selected catalogue filter."""
+    from sqlalchemy import select
+
+    from app.models.movie_person import MoviePerson
+    from app.models.person import Person
+
+    has_cast_credit = (
+        select(MoviePerson.id)
+        .where(
+            MoviePerson.person_id == Person.id,
+            MoviePerson.credit_type == "cast",
+        )
+        .exists()
+    )
+
+    row = (
+        await session.execute(
+            select(Person.id, Person.name).where(
+                Person.id == actor_id,
+                has_cast_credit,
+            )
+        )
+    ).one_or_none()
+
+    if row is None:
+        raise HTTPException(404, "Actor not found")
+
+    person_id, name = row
+    return {
+        "id": str(person_id),
+        "name": name,
+    }
 
 
 @router.get("/{movie_id}", response_model=MovieRead)
