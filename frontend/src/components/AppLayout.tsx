@@ -16,6 +16,7 @@ export function AppLayout() {
 
           <nav className="main-nav">
             <NavLink to="/movies">Movies</NavLink>
+            <NavLink to="/lists">Lists</NavLink>
             {user && <NavLink to="/movies/add">Add movie</NavLink>}
             {user && <NavLink to="/catalog">Catalog</NavLink>}
             {user?.role === "admin" && (

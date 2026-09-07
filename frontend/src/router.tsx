@@ -7,6 +7,8 @@ import { AdminPage } from "./pages/AdminPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
+import { ListDetailPage } from "./pages/ListDetailPage";
+import { ListsPage } from "./pages/ListsPage";
 import { MovieDetailPage } from "./pages/MovieDetailPage";
 import { MovieEditPage } from "./pages/MovieEditPage";
 import { MoviesPage } from "./pages/MoviesPage";
@@ -23,6 +25,14 @@ export const router = createBrowserRouter([
       {
         path: "/movies",
         element: <MoviesPage />,
+      },
+      {
+        path: "/lists",
+        element: <ListsPage />,
+      },
+      {
+        path: "/lists/:listId",
+        element: <ListDetailPage />,
       },
       {
         path: "/movies/:movieId",

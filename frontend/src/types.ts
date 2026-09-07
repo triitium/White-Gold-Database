@@ -258,3 +258,43 @@ export type EditableCredit = {
   billing_order: number | null;
   tmdb_credit_id?: string | null;
 };
+
+export type MovieListOwner = {
+  id: string;
+  username: string;
+};
+
+export type PublicMovieListSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  created_by: MovieListOwner | null;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PublicMovieListMovie = {
+  id: string;
+  title: string;
+  original_title: string | null;
+  release_year: number | null;
+  poster_url: string | null;
+  poster_path: string | null;
+};
+
+export type PublicMovieListEntry = {
+  movie: PublicMovieListMovie;
+  position: number;
+  note: string | null;
+};
+
+export type PublicMovieList = {
+  id: string;
+  title: string;
+  description: string | null;
+  created_by: MovieListOwner | null;
+  items: PublicMovieListEntry[];
+  created_at: string;
+  updated_at: string;
+};

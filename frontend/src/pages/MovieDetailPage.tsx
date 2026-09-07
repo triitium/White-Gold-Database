@@ -11,6 +11,7 @@ import { dateLabel, formatRuntime } from "../lib/format";
 import type {
   ExternalRatingRead,
   MovieRead,
+  PublicMovieListSummary,
   Review,
   UserMovieState,
 } from "../types";
@@ -176,6 +177,8 @@ export function MovieDetailPage() {
 
           {user && (
             <div className="hero-actions">
+              <AddToListControl movieId={movie.id} />
+
               <Link
                 to={`/movies/${movie.id}/edit`}
                 className="button button--ghost"
@@ -611,5 +614,152 @@ function ReviewCard({
         </button>
       )}
     </article>
+  );
+}
+
+function AddToListControl({ movieId }: { movieId: string }) {
+  const [lists, setLists] = useState<PublicMovieListSummary[]>([]);
+  const [listId, setListId] = useState("");
+  const [note, setNote] = useState("");
+  const [loadingLists, setLoadingLists] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api<PublicMovieListSummary[]>("/lists/mine")
+      .then((rows) => {
+        if (!cancelled) {
+          setLists(rows);
+
+          if (rows.length > 0) {
+            setListId(rows[0].id);
+          }
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAddError(
+            err instanceof ApiError
+              ? err.detail
+              : "Could not load your lists",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingLists(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function addToList() {
+    if (!listId) return;
+
+    setAdding(true);
+    setMessage(null);
+    setAddError(null);
+
+    try {
+      await api(`/lists/${listId}/items`, {
+        method: "POST",
+        csrf: true,
+        body: JSON.stringify({
+          movie_id: movieId,
+          note: note.trim() || null,
+        }),
+      });
+
+      const selected = lists.find((item) => item.id === listId);
+
+      setMessage(
+        selected
+          ? `Added to "${selected.title}"`
+          : "Added to list",
+      );
+
+      setNote("");
+    } catch (err) {
+      setAddError(
+        err instanceof ApiError
+          ? err.detail
+          : "Could not add film to list",
+      );
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  if (loadingLists) {
+    return (
+      <span className="add-to-list__status">
+        Loading lists…
+      </span>
+    );
+  }
+
+  if (lists.length === 0) {
+    return (
+      <Link
+        to="/lists"
+        className="button button--ghost"
+      >
+        Create a list
+      </Link>
+    );
+  }
+
+  return (
+    <div className="add-to-list">
+      <select
+        value={listId}
+        onChange={(event) => {
+          setListId(event.target.value);
+          setMessage(null);
+          setAddError(null);
+        }}
+        aria-label="Choose list"
+      >
+        {lists.map((movieList) => (
+          <option key={movieList.id} value={movieList.id}>
+            {movieList.title}
+          </option>
+        ))}
+      </select>
+
+      <input
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Optional note"
+        aria-label="List note"
+      />
+
+      <button
+        type="button"
+        className="button"
+        disabled={adding || !listId}
+        onClick={() => void addToList()}
+      >
+        {adding ? "Adding…" : "Add to list"}
+      </button>
+
+      {message && (
+        <span className="add-to-list__success">
+          {message}
+        </span>
+      )}
+
+      {addError && (
+        <span className="add-to-list__error">
+          {addError}
+        </span>
+      )}
+    </div>
   );
 }
