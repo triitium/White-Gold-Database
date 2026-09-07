@@ -11,6 +11,7 @@ from app.models.classification import (
 )
 from app.models.external_rating import ExternalRating
 from app.models.movie import Movie
+from app.models.movie_list import MovieList, MovieListItem
 from app.models.movie_link import MovieLink
 from app.models.movie_person import MoviePerson
 from app.models.person import Person
@@ -28,6 +29,8 @@ __all__ = [
     "MovieCountry",
     "MovieGenre",
     "MovieLanguage",
+    "MovieList",
+    "MovieListItem",
     "MovieLink",
     "MoviePerson",
     "MovieStudio",

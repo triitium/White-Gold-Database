@@ -41,6 +41,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    movie_lists = relationship(
+        "MovieList",
+        back_populates="created_by",
+        passive_deletes=True,
+    )
     audit_logs = relationship(
         "AuditLog",
         back_populates="actor",

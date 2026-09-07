@@ -93,6 +93,12 @@ class Movie(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    list_items = relationship(
+        "MovieListItem",
+        back_populates="movie",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     external_ratings = relationship(
         "ExternalRating",
         back_populates="movie",
